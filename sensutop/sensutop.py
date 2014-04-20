@@ -61,6 +61,7 @@ class SensuAPIFetcher(threading.Thread):
         self.port = endpoint_config['port']
         self.username = endpoint_config['username']
         self.password = endpoint_config['password']
+        self.sensu_events = []
         if self.ssl:
             proto = 'https://'
         else:
@@ -71,8 +72,8 @@ class SensuAPIFetcher(threading.Thread):
     def run(self):
         while not self.event.is_set():
             logging.debug("  Fetching " + self.name)
-            self.events = self.get_events()
-            logging.debug("     Got " + str(len(self.events)) + " events!")
+            self.sensu_events = self.get_events()
+            logging.debug("     Got " + str(len(self.sensu_events)) + " events!")
             self.event.wait(DELAY)
     def stop(self):
         self.event.set()
@@ -113,13 +114,26 @@ class SensuTop(object):
         self.screen = screen
         self.fetchers = {}
         pass
+    def get_all_sensu_events(self):
+        all_events = []
+        for fetcher in self.fetchers.itervalues():
+            all_events.extend(fetcher.sensu_events)
+        return all_events
     def draw_loop(self):
         (maxY, maxX) = self.screen.getmaxyx()
-        self.screen.addstr("This is a String")
         while True: 
-           event = self.screen.getch() 
-           if event == ord("q"):
-               break
+            self.screen.nodelay(1)
+            self.update_screen()
+            event = self.screen.getch() 
+            if event == ord("q"):
+                break
+            else: time.sleep(1)
+    def update_screen(self): 
+        line = 1
+        for sensu_event in self.get_all_sensu_events():
+            self.screen.addstr(line, 1, str(sensu_event))
+            line += 1
+
     def start_fetchers(self):
         for endpoint_name, endpoint_config in self.config['api_endpoints'].iteritems():
             self.fetchers[endpoint_name] = SensuAPIFetcher(endpoint_name, endpoint_config)
