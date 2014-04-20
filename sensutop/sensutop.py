@@ -131,9 +131,14 @@ class SensuTop(object):
     def update_screen(self): 
         line = 1
         for sensu_event in self.get_all_sensu_events():
-            self.screen.addstr(line, 1, str(sensu_event))
+            self.draw_event(line, sensu_event)
             line += 1
-
+    def draw_event(self, line_number, sensu_event)
+        client = sensu_event['client']
+        check = sensu_event['check']
+        output = sensu_event['output']
+        status = sensu_event['status']
+        self.screen.addstr(line_number, 1, client + "\t" + check + "\t" + output)
     def start_fetchers(self):
         for endpoint_name, endpoint_config in self.config['api_endpoints'].iteritems():
             self.fetchers[endpoint_name] = SensuAPIFetcher(endpoint_name, endpoint_config)
