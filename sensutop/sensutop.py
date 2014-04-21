@@ -113,6 +113,10 @@ class SensuTop(object):
         self.config = config
         self.screen = screen
         self.fetchers = {}
+        curses.init_pair(10, curses.COLOR_GREEN, curses.COLOR_BLACK)
+        curses.init_pair(1, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+        curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLACK)
+        curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_WHITE)
         pass
     def get_all_sensu_events(self):
         all_events = []
@@ -122,23 +126,28 @@ class SensuTop(object):
     def draw_loop(self):
         (maxY, maxX) = self.screen.getmaxyx()
         while True: 
+            self.screen.clear()
             self.screen.nodelay(1)
+            self.draw_header()
             self.update_screen()
             event = self.screen.getch() 
             if event == ord("q"):
                 break
             else: time.sleep(1)
+    def draw_header(self):
+        self.screen.addstr(0, 0, " SensuTop", curses.color_pair(10))
     def update_screen(self): 
         line = 1
         for sensu_event in self.get_all_sensu_events():
             self.draw_event(line, sensu_event)
             line += 1
-    def draw_event(self, line_number, sensu_event)
+    def draw_event(self, line_number, sensu_event):
         client = sensu_event['client']
         check = sensu_event['check']
         output = sensu_event['output']
         status = sensu_event['status']
-        self.screen.addstr(line_number, 1, client + "\t" + check + "\t" + output)
+        event_string = client + "\t" + check + "\t" + output
+        self.screen.addstr(line_number, 1, event_string, curses.color_pair(status))
     def start_fetchers(self):
         for endpoint_name, endpoint_config in self.config['api_endpoints'].iteritems():
             self.fetchers[endpoint_name] = SensuAPIFetcher(endpoint_name, endpoint_config)
@@ -160,6 +169,5 @@ def main(stdscr):
     st.stop_fetchers()
 
 if __name__ == '__main__':
-    # For now, just spit out all messages
-    logging.getLogger().setLevel(0)
+    #logging.getLogger().setLevel(0)
     curses.wrapper(main)
