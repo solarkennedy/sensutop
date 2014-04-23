@@ -12,4 +12,4 @@ A curses-based [Sensu](http://sensuapp.org/) dashboard.
 
 ## Configuration
 
-See CONFIGURATION.md
+See [CONFIG.md](https://github.com/solarkennedy/sensutop/blob/master/CONFIG.md).
