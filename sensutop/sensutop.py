@@ -57,6 +57,7 @@ class SensuTop(object):
     def __init__(self, screen, config):
         self.config = config
         self.screen = screen
+        self.columns = [ 'client', 'check', 'output' ]
         self.fetchers = {}
         curses.init_pair(10, curses.COLOR_GREEN, curses.COLOR_BLACK)
         curses.init_pair(1, curses.COLOR_YELLOW, curses.COLOR_BLACK)
@@ -87,23 +88,35 @@ class SensuTop(object):
         line = 1
         max_showable_events = self.screen.getmaxyx()[0] - 1
         logging.debug("This screen size only allows us to show " + str(max_showable_events) + " events")
-        for sensu_event in self.get_relevant_sensu_events(max_showable_events):
+        events_to_show = self.get_relevant_sensu_events(max_showable_events)
+        self.setup_optimal_column_widths(events_to_show)
+        for sensu_event in events_to_show:
             self.draw_event(line, sensu_event)
             line += 1
+    def setup_optimal_column_widths(self, sensu_events):
+        # This list comprehension goes through all the sensu events and
+        # extracts only the relevant field data out of them.
+        relevant_event_data = [ [ event[column] for column in self.columns ] for event in sensu_events ]
+        # Stolen from http://stackoverflow.com/a/3685943
+        cols = zip(*relevant_event_data)
+        # Another list comprehension to gather the max length of each field
+        col_widths = [ max(len(value) for value in col) for col in cols ]
+        self.column_format_string = ' '.join(['%%-%ds' % width for width in col_widths ])
     def draw_event(self, line_number, sensu_event):
         status = sensu_event['status']
         event_string = self.format_event_for_output(sensu_event)
         color_pair = self.choose_color(sensu_event)
-        logging.debug("Putting something on line " + str(line_number) + ". Color pair: " + str(color_pair) + ". String: " + event_string)
+        logging.debug("Printing event: " + str(sensu_event))
+        logging.debug("Printing string: " + event_string + " to line " + str(line_number))
         self.screen.addstr(line_number, 1, event_string, curses.color_pair(color_pair))
     def format_event_for_output(self, sensu_event):
         # TODO Columns and stuff
-        max_width = self.screen.getmaxyx()[1] - 1
-        client = sensu_event['client']
-        check = sensu_event['check']
-        output = sensu_event['output']
-        event_string = client + "\t" + check + "\t" + output
+        max_width = self.screen.getmaxyx()[1] - 5
+        event_string = self.column_format_string % tuple([ sensu_event[column] for column in self.columns ])
+        event_string = event_string.replace("\n", '')
+        event_string = event_string.replace("\t", '')
         event_string = event_string[:max_width]
+        logging.debug("Aparently the correct length for this string is " + str(len(event_string)))
         return event_string
 
     def choose_color(self, sensu_event):
