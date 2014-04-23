@@ -10,3 +10,6 @@ A curses-based [Sensu](http://sensuapp.org/) dashboard.
 * Handles SSL and Basic Auth
 * Can handle system and use-wide config files
 
+## Configuration
+
+See CONFIGURATION.md
