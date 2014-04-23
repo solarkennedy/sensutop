@@ -8,8 +8,9 @@ import threading
 import time
 import urllib2
 
-DELAY=5
+API_FETCH_DELAY=30
 
+from sensuapifetcher import *
 
 def load_sensutop_configfile(filename):
     config = {}
@@ -52,62 +53,6 @@ def load_sensutop_config():
     logging.debug(config)
     return config
 
-class SensuAPIFetcher(threading.Thread):
-    def __init__(self, endpoint_name, endpoint_config):
-        threading.Thread.__init__(self)
-        self.name = endpoint_name
-        self.host = endpoint_config['host']
-        self.ssl = endpoint_config['ssl']
-        self.port = endpoint_config['port']
-        self.username = endpoint_config['username']
-        self.password = endpoint_config['password']
-        self.sensu_events = []
-        if self.ssl:
-            proto = 'https://'
-        else:
-            proto = 'http://'
-        self.url = proto + self.host + ":" + str(self.port) + '/events?_=' 
-        self.event = threading.Event()
-        logging.debug("initializing background sensu api fetching for " + self.name)
-    def run(self):
-        while not self.event.is_set():
-            logging.debug("  Fetching " + self.name)
-            self.sensu_events = self.get_events()
-            logging.debug("     Got " + str(len(self.sensu_events)) + " events!")
-            self.event.wait(DELAY)
-    def stop(self):
-        self.event.set()
-    def get_events(self):
-        logging.debug("    Fetching " + self.url)
-        headers = {'X_REQUESTED_WITH' :'XMLHttpRequest',
-           'Accept': 'application/json, text/javascript, */*; q=0.01',}
-        request = urllib2.Request(self.url, None, headers)
-        if self.username:
-            # Need to handle authentication
-            passman = urllib2.HTTPPasswordMgrWithDefaultRealm()
-            passman.add_password(None, self.url, self.username, self.password)
-            authhandler = urllib2.HTTPBasicAuthHandler(passman)
-            opener = urllib2.build_opener(authhandler)
-            urllib2.install_opener(opener)
-        else:
-            logging.debug("Aparently we dont need basic auth")
-        try:
-            pagehandle = urllib2.urlopen(request)
-            the_page = pagehandle.read()
-        except IOError as e:
-            raise
-            logging.debug("Fetching " + self.url + "Failed: ")
-            logging.debug(e)
-            return []
-        try:
-            events = json.loads(the_page)
-        except Exception as e:
-            logging.debug("Parsing json failed ")
-            logging.debug(e)
-            raise
-            events = []
-        return events
-
 class SensuTop(object):
     def __init__(self, screen, config):
         self.config = config
@@ -118,6 +63,8 @@ class SensuTop(object):
         curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLACK)
         curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_WHITE)
         pass
+    def get_relevant_sensu_events(self, quantity=10):
+        return self.get_all_sensu_events()[:quantity]
     def get_all_sensu_events(self):
         all_events = []
         for fetcher in self.fetchers.itervalues():
@@ -138,16 +85,36 @@ class SensuTop(object):
         self.screen.addstr(0, 0, " SensuTop", curses.color_pair(10))
     def update_screen(self): 
         line = 1
-        for sensu_event in self.get_all_sensu_events():
+        max_showable_events = self.screen.getmaxyx()[0] - 1
+        logging.debug("This screen size only allows us to show " + str(max_showable_events) + " events")
+        for sensu_event in self.get_relevant_sensu_events(max_showable_events):
             self.draw_event(line, sensu_event)
             line += 1
     def draw_event(self, line_number, sensu_event):
+        status = sensu_event['status']
+        event_string = self.format_event_for_output(sensu_event)
+        color_pair = self.choose_color(sensu_event)
+        logging.debug("Putting something on line " + str(line_number) + ". Color pair: " + str(color_pair) + ". String: " + event_string)
+        self.screen.addstr(line_number, 1, event_string, curses.color_pair(color_pair))
+    def format_event_for_output(self, sensu_event):
+        # TODO Columns and stuff
+        max_width = self.screen.getmaxyx()[1] - 1
         client = sensu_event['client']
         check = sensu_event['check']
         output = sensu_event['output']
-        status = sensu_event['status']
         event_string = client + "\t" + check + "\t" + output
-        self.screen.addstr(line_number, 1, event_string, curses.color_pair(status))
+        event_string = event_string[:max_width]
+        return event_string
+
+    def choose_color(self, sensu_event):
+        if sensu_event['status'] == 0:
+            return 10
+        elif sensu_event['status'] == 1:
+            return 1
+        elif sensu_event['status'] == 2:
+            return 2
+        else:
+            return 3
     def start_fetchers(self):
         for endpoint_name, endpoint_config in self.config['api_endpoints'].iteritems():
             self.fetchers[endpoint_name] = SensuAPIFetcher(endpoint_name, endpoint_config)
@@ -164,10 +131,12 @@ def main(stdscr):
     # Go ahead and start fetching sensu events
     st.start_fetchers()
     # Don't wait, go ahead and start the gui
+    time.sleep(0)
     st.draw_loop()
     # When we are done, gracefully cleanup the background fetcher threads
     st.stop_fetchers()
 
 if __name__ == '__main__':
-    #logging.getLogger().setLevel(0)
+    logging.getLogger().setLevel(0)
+    logging.basicConfig(filename='sensutop.log',level=logging.DEBUG)
     curses.wrapper(main)
