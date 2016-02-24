@@ -1,5 +1,13 @@
 ## sensutop
 
+# DEPRECATED
+
+This project is deprecated in favor of [tessen](https://github.com/mikepea/tessen)
+
+
+
+
+
 [![Build Status](https://travis-ci.org/solarkennedy/sensutop.svg)](https://travis-ci.org/solarkennedy/sensutop)
 
 A curses-based [Sensu](http://sensuapp.org/) dashboard.
